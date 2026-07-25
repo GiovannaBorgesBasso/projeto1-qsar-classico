@@ -44,6 +44,8 @@ analysis — documented with full reasoning at each step.
 | **Reference drugs (oncology)** | Ibrutinib, Acalabrutinib, Zanubrutinib |
 | **Reference drugs (autoimmune)** | Remibrutinib (approved for chronic spontaneous urticaria) |
 
+*Abbreviations: CLL = Chronic Lymphocytic Leukemia; MCL = Mantle Cell Lymphoma; WM = Waldenström Macroglobulinemia; SLE = Systemic Lupus Erythematosus; RA = Rheumatoid Arthritis.*
+
 ### Biological rationale
 
 BTK sits downstream of the B-cell receptor (BCR) and plays a central role
