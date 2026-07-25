@@ -14,13 +14,12 @@ data to trained, evaluated, and tuned machine learning models — applied to
 to B-cell receptor (BCR) signaling.
 
 BTK inhibition is an established therapeutic strategy for **B-cell
-malignancies** (the primary approved indication) and is under active
-clinical investigation for **autoimmune diseases** such as Systemic Lupus
-Erythematosus (SLE). First-generation BTK
-inhibitors (ibrutinib, acalabrutinib) show prohibitive toxicity profiles
-for chronic autoimmune use; next-generation selective reversible inhibitors
-(e.g. remibrutinib, approved for chronic spontaneous urticaria) represent
-the current frontier for autoimmune indications.
+malignancies** (the primary approved indication). For autoimmune diseases,
+the picture is more nuanced: next-generation selective BTK inhibitors are
+under active clinical investigation for **SLE**, while for **RA**, clinical
+trials have been conducted but showed limited efficacy as monotherapy —
+results have been equivocal, and RA remains treated in practice with
+synthetic DMARDs, anti-TNF biologics, and JAK inhibitors.
 
 The project covers both **classification** (active/inactive) and
 **regression** (continuous pIC50 prediction), compares Random Forest against
@@ -40,7 +39,8 @@ analysis — documented with full reasoning at each step.
 | **Raw records collected** | 6,502 |
 | **Curated unique compounds** | 4,354 |
 | **Approved indications** | B-cell malignancies (CLL, MCL, WM) |
-| **Investigational indications** | SLE, Rheumatoid Arthritis (clinical trials ongoing) |
+| **Investigational (active)** | SLE — next-gen selective inhibitors in clinical trials |
+| **Investigational (equivocal)** | RA — clinical trials conducted, limited efficacy as monotherapy |
 | **Reference drugs (oncology)** | Ibrutinib, Acalabrutinib, Zanubrutinib |
 | **Reference drugs (autoimmune)** | Remibrutinib (approved for chronic spontaneous urticaria) |
 
@@ -52,17 +52,24 @@ drives:
 
 - **B-cell malignancies** — the primary therapeutic area where BTK inhibitors
   are currently approved (CLL, mantle cell lymphoma, Waldenström
-  macroglobulinemia)
-- **Autoimmune diseases** — B-cell hyperactivation via BCR signaling
-  contributes to SLE and RA pathogenesis; however, approved BTK inhibitors
-  were developed for oncology, where their toxicity is acceptable. For chronic
-  autoimmune use, more selective reversible inhibitors are under clinical
-  investigation. Rheumatoid Arthritis is currently treated in practice with
-  synthetic DMARDs, anti-TNF biologics, and JAK inhibitors — BTK inhibitors
-  remain investigational for this indication.
+  macroglobulinemia).
+- **SLE** — B-cell hyperactivation via BCR signaling is central to SLE
+  pathogenesis; next-generation selective reversible BTK inhibitors are under
+  active clinical investigation for this indication.
+- **RA** — BTK was investigated in clinical trials (fenebrutinib, spebrutinib,
+  evobrutinib, tirabrutinib) but results were equivocal — limited efficacy as
+  monotherapy in humans, despite promising preclinical data in animal models.
+  RA is currently treated in clinical practice with synthetic DMARDs,
+  anti-TNF biologics, and JAK inhibitors; BTK inhibitors are not an active
+  frontier for this indication.
+
+First-generation BTK inhibitors (ibrutinib, acalabrutinib) show toxicity
+profiles acceptable for oncology but not for chronic autoimmune use —
+hence the development of more selective reversible inhibitors for autoimmune
+indications.
 
 This dataset was chosen for its strong compound volume, well-curated
-ChEMBL data, and position at an active frontier of drug discovery research.
+ChEMBL data, and position at an active frontier of B-cell targeted therapy.
 
 ---
 
@@ -112,10 +119,10 @@ No single strategy dominates. The project formalizes **two complementary
 models as primary outputs**:
 
 1. **Baseline** (`class_weight='balanced'`, threshold=0.5) — best general-purpose
-   balance between classes
+   balance between classes.
 2. **Same model + threshold=0.65** — best for conservative virtual screening
    triage, maximizing inactive recall (0.882) to avoid wasting resources on
-   likely-inactive candidates; requires no retraining
+   likely-inactive candidates; requires no retraining.
 
 SMOTE and undersampling underperformed the baseline and are retained as
 documented comparison evidence only.
@@ -255,12 +262,12 @@ jupyter notebook
 
 ## Limitations
 
-- **Approved indications vs. investigational use:** the BTK inhibitors used
-  as reference drugs here (ibrutinib, acalabrutinib, zanubrutinib) are
-  approved for B-cell malignancies, not autoimmune diseases. BTK inhibition
-  for SLE and RA remains under clinical investigation. The dataset reflects
-  the full range of BTK bioactivity data in ChEMBL, including compounds
-  developed for oncology.
+- **Clinical context of reference drugs:** ibrutinib, acalabrutinib, and
+  zanubrutinib are approved for B-cell malignancies, not autoimmune diseases.
+  BTK inhibition for SLE is under active clinical investigation; for RA,
+  trials were conducted but showed equivocal results with limited monotherapy
+  efficacy — the dataset reflects the full range of BTK bioactivity data in
+  ChEMBL, including compounds originally developed for oncology.
 - **2D fingerprints only** — ECFP4 encodes substructure topology, not 3D
   conformation or binding geometry. Potency information dependent on
   molecular shape or specific protein pocket interactions is not captured.
