@@ -10,8 +10,17 @@ Part of a personal cheminformatics/ML portfolio developed in parallel with resea
 
 This project builds a complete classical QSAR pipeline from raw bioactivity
 data to trained, evaluated, and tuned machine learning models — applied to
-**BTK (Bruton's Tyrosine Kinase)**, a key therapeutic target in autoimmune
-diseases (lupus, rheumatoid arthritis) and B-cell malignancies.
+**BTK (Bruton's Tyrosine Kinase)**, a non-receptor tyrosine kinase central
+to B-cell receptor (BCR) signaling.
+
+BTK inhibition is an established therapeutic strategy for **B-cell
+malignancies** (the primary approved indication) and is under active
+clinical investigation for **autoimmune diseases** such as Systemic Lupus
+Erythematosus (SLE). First-generation BTK
+inhibitors (ibrutinib, acalabrutinib) show prohibitive toxicity profiles
+for chronic autoimmune use; next-generation selective reversible inhibitors
+(e.g. remibrutinib, approved for chronic spontaneous urticaria) represent
+the current frontier for autoimmune indications.
 
 The project covers both **classification** (active/inactive) and
 **regression** (continuous pIC50 prediction), compares Random Forest against
@@ -30,8 +39,30 @@ analysis — documented with full reasoning at each step.
 | **Activity type** | IC50 |
 | **Raw records collected** | 6,502 |
 | **Curated unique compounds** | 4,354 |
-| **Therapeutic area** | Autoimmune diseases, B-cell malignancies |
-| **Reference drugs** | Ibrutinib, Acalabrutinib, Zanubrutinib |
+| **Approved indications** | B-cell malignancies (CLL, MCL, WM) |
+| **Investigational indications** | SLE, Rheumatoid Arthritis (clinical trials ongoing) |
+| **Reference drugs (oncology)** | Ibrutinib, Acalabrutinib, Zanubrutinib |
+| **Reference drugs (autoimmune)** | Remibrutinib (approved for chronic spontaneous urticaria) |
+
+### Biological rationale
+
+BTK sits downstream of the B-cell receptor (BCR) and plays a central role
+in B-cell survival, proliferation, and differentiation. Its dysregulation
+drives:
+
+- **B-cell malignancies** — the primary therapeutic area where BTK inhibitors
+  are currently approved (CLL, mantle cell lymphoma, Waldenström
+  macroglobulinemia)
+- **Autoimmune diseases** — B-cell hyperactivation via BCR signaling
+  contributes to SLE and RA pathogenesis; however, approved BTK inhibitors
+  were developed for oncology, where their toxicity is acceptable. For chronic
+  autoimmune use, more selective reversible inhibitors are under clinical
+  investigation. Rheumatoid Arthritis is currently treated in practice with
+  synthetic DMARDs, anti-TNF biologics, and JAK inhibitors — BTK inhibitors
+  remain investigational for this indication.
+
+This dataset was chosen for its strong compound volume, well-curated
+ChEMBL data, and position at an active frontier of drug discovery research.
 
 ---
 
@@ -52,15 +83,18 @@ analysis — documented with full reasoning at each step.
 | SVR | 0.687 | 0.663 |
 
 **Random Forest outperformed SVM/SVR on every metric, in both tasks**, and
-trained significantly faster. See `notebooks/04` and `notebooks/05` for the
+trained significantly faster (~16s vs ~2min for 5-fold CV). See
+`notebooks/04_modeling.ipynb` and `notebooks/05_regression.ipynb` for the
 full comparison and reasoning.
 
 ### Hyperparameter tuning (notebook 06)
 
 GridSearchCV/RandomizedSearchCV found that **default hyperparameters were
 already near-optimal** for both models — tuning produced no measurable
-improvement in CV AUC. This indicated the performance bottleneck was
-elsewhere (data/class balance), not model configuration.
+improvement in CV AUC. This indicated the performance bottleneck was in the
+data (limited inactive examples, 2D-only representation), not model
+configuration — a meaningful negative result documented explicitly rather
+than omitted.
 
 ### Class imbalance strategies (notebook 07)
 
@@ -74,25 +108,30 @@ were compared on the Random Forest classifier:
 | Random undersampling | 0.938 | 0.682 | 0.868 |
 | **Threshold adjustment (0.65)** | 0.953 | 0.744 | **0.882** |
 
-No single strategy dominates — each optimizes a different objective. The
-project formalizes **two models as primary outputs**:
-1. **Baseline** — best general-purpose balance between classes
-2. **Same model + threshold=0.65** — best for conservative virtual screening
-   triage (prioritizes catching true inactives), requires no retraining
+No single strategy dominates. The project formalizes **two complementary
+models as primary outputs**:
 
-SMOTE and undersampling underperformed the baseline and are documented as
-comparison evidence only — not carried into `src/`.
+1. **Baseline** (`class_weight='balanced'`, threshold=0.5) — best general-purpose
+   balance between classes
+2. **Same model + threshold=0.65** — best for conservative virtual screening
+   triage, maximizing inactive recall (0.882) to avoid wasting resources on
+   likely-inactive candidates; requires no retraining
+
+SMOTE and undersampling underperformed the baseline and are retained as
+documented comparison evidence only.
 
 ### Chemical interpretability: bit_56
 
 Across **both** the classification and regression Random Forest models, the
-single most important fingerprint feature is consistently **bit_56**,
-decoded via RDKit as a **urea/amide-centered substructure**
-(–NH–C(=O)–NH–) — a known hydrogen-bond donor/acceptor motif common in
-kinase inhibitors that interacts with the ATP-binding hinge region. This
-convergence across two independently trained models on two different tasks
-is strong evidence the models learned a chemically meaningful
-structure-activity relationship, not statistical noise.
+dominant fingerprint feature is consistently **bit_56**, decoded via RDKit
+as a **urea/amide-centered substructure** (–NH–C(=O)–NH–). This motif is a
+well-characterized hydrogen-bond donor/acceptor in kinase inhibitors,
+known to interact with the ATP-binding hinge region of the kinase domain.
+
+Its emergence as the top predictor in two independently trained models
+solving two different tasks is strong evidence the models captured a real
+structure-activity relationship, not statistical noise — without being
+given any prior biological information.
 
 ---
 
@@ -111,16 +150,16 @@ ChEMBL API (CHEMBL2842)
   └─ Morgan Fingerprints (ECFP4, r=2, 2048 bits) → data/processed/btk_fps.csv
         ↓
 04_modeling.ipynb / src/train_classifier.py
-  └─ RF vs SVM classification → AUC 0.953 vs 0.938
+  └─ RF vs SVM classification → AUC 0.953 (RF) vs 0.938 (SVM)
         ↓
 05_regression.ipynb / src/train_regressor.py
-  └─ RF vs SVR regression → R² 0.742 vs 0.687
+  └─ RF vs SVR regression → R² 0.742 (RF) vs 0.687 (SVR)
         ↓
 06_tuning_classification.ipynb
-  └─ GridSearchCV/RandomizedSearchCV → defaults confirmed near-optimal
+  └─ GridSearchCV / RandomizedSearchCV → defaults confirmed near-optimal (no AUC gain)
         ↓
 07_imbalance_strategies.ipynb
-  └─ SMOTE / undersampling / threshold tuning → baseline + threshold=0.65 formalized
+  └─ SMOTE / undersampling / threshold → baseline + threshold=0.65 formalized as primary models
 ```
 
 ---
@@ -130,9 +169,9 @@ ChEMBL API (CHEMBL2842)
 ```
 projeto1-qsar-classico/
 ├── data/
-│   ├── raw/                          # ChEMBL raw download (gitignored)
-│   └── processed/                    # Curated + featurized datasets (gitignored)
-├── notebooks/                        # Full narrative pipeline with analysis
+│   ├── raw/                           # ChEMBL raw download (gitignored)
+│   └── processed/                     # Curated + featurized datasets (gitignored)
+├── notebooks/                         # Full narrative pipeline with analysis
 │   ├── 01_data_collection.ipynb
 │   ├── 02_preprocessing.ipynb
 │   ├── 03_fingerprints.ipynb
@@ -162,7 +201,7 @@ projeto1-qsar-classico/
 | Tool | Purpose |
 |------|---------|
 | Python 3.11 | Core language |
-| RDKit | Morgan fingerprints (ECFP4), SMILES parsing/validation |
+| RDKit | Morgan fingerprints (ECFP4), SMILES parsing/validation, bit decoding |
 | scikit-learn | RF, SVM/SVR, cross-validation, GridSearchCV, metrics |
 | imbalanced-learn | SMOTE, random undersampling |
 | chembl_webresource_client | ChEMBL API data download |
@@ -188,10 +227,10 @@ python -m ipykernel install --user --name qsar-proj1 --display-name "Python 3 (q
 ### Run the full pipeline
 
 ```bash
-# From scratch (re-downloads from ChEMBL, ~7 min)
+# From scratch (re-downloads from ChEMBL, ~7 min total)
 python -m src.main
 
-# Reuse existing raw data (skips download)
+# Reuse existing raw data, skip ChEMBL download (~1 min)
 python -m src.main --skip-download
 ```
 
@@ -216,16 +255,24 @@ jupyter notebook
 
 ## Limitations
 
+- **Approved indications vs. investigational use:** the BTK inhibitors used
+  as reference drugs here (ibrutinib, acalabrutinib, zanubrutinib) are
+  approved for B-cell malignancies, not autoimmune diseases. BTK inhibition
+  for SLE and RA remains under clinical investigation. The dataset reflects
+  the full range of BTK bioactivity data in ChEMBL, including compounds
+  developed for oncology.
 - **2D fingerprints only** — ECFP4 encodes substructure topology, not 3D
-  conformation or binding geometry.
+  conformation or binding geometry. Potency information dependent on
+  molecular shape or specific protein pocket interactions is not captured.
 - **Class imbalance partially addressed, not eliminated** — inactive-class
   performance (F1 ≈ 0.74–0.77) remains below active-class performance
-  (F1 ≈ 0.93–0.95) across all strategies tested.
-- **Extrapolation limits** — both RF and SVR compress predictions toward
-  the mean at extreme pIC50 values (very weak or very potent compounds),
-  a known limitation of tree-based and kernel models on out-of-distribution data.
-- **No applicability domain analysis** — predictions for molecules very
-  structurally different from the training set should be treated with caution.
+  (F1 ≈ 0.93–0.95) across all strategies tested, reflecting the limited
+  number of inactive examples (760 of 4,354 compounds).
+- **Extrapolation limits** — RF predictions are bounded by the training set
+  range and compress toward the mean at extreme pIC50 values, making the
+  model less reliable for unusually potent or unusually weak compounds.
+- **No applicability domain analysis** — predictions for structurally novel
+  compounds (far from the training set) should be treated with caution.
 
 ---
 
@@ -235,7 +282,7 @@ This is **Project 1** of a personal AI/cheminformatics portfolio, building
 progressively toward production-level skills in computational drug discovery.
 
 - **Project 1** (this): Classical QSAR — fingerprints + scikit-learn
-- Project 2 (planned): Graph neural networks for molecular property prediction
+- Project 2 (planned): Graph neural networks for BBB permeability prediction (MoleculeNet/BBBP)
 - Project 3 (planned): Generative models for de novo drug design
 
 ---
