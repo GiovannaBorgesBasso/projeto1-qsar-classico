@@ -33,11 +33,11 @@ analysis — documented with full reasoning at each step.
 | Field | Value |
 |-------|-------|
 | **Target** | Bruton's Tyrosine Kinase (BTK) |
-| **ChEMBL ID** | CHEMBL2842 |
+| **ChEMBL ID** | CHEMBL5251 |
 | **Organism** | *Homo sapiens* |
 | **Activity type** | IC50 |
-| **Raw records collected** | 6,502 |
-| **Curated unique compounds** | 4,354 |
+| **Raw records collected** | 21,675 |
+| **Curated unique compounds** | 9,436 |
 | **Approved indications** | B-cell malignancies (CLL, MCL, WM) |
 | **Investigational (active)** | SLE — next-gen selective inhibitors in clinical trials |
 | **Investigational (equivocal)** | RA — clinical trials conducted, limited efficacy as monotherapy |
@@ -70,105 +70,74 @@ profiles acceptable for oncology but not for chronic autoimmune use —
 hence the development of more selective reversible inhibitors for autoimmune
 indications.
 
-This dataset was chosen for its strong compound volume, well-curated
-ChEMBL data, and position at an active frontier of B-cell targeted therapy.
-
 ---
 
 ## Key Results
 
 ### Classification (active vs. inactive, pIC50 ≥ 6.0 threshold)
 
-| Model | Test AUC-ROC | Test F1 |
-|-------|---------------|---------|
-| **Random Forest** | **0.953** | **0.946** |
-| SVM | 0.938 | 0.930 |
+| Model | Test AUC-ROC | Test F1 | Test MCC |
+|-------|---------------|---------|----------|
+| **Random Forest** | *(pending)* | *(pending)* | *(pending)* |
+| SVM | *(pending)* | *(pending)* | *(pending)* |
+
+> Results will be updated after notebook 04 completes.
 
 ### Regression (continuous pIC50 prediction)
 
 | Model | Test R² | Test RMSE |
 |-------|---------|-----------|
-| **Random Forest** | **0.742** | **0.602** |
-| SVR | 0.687 | 0.663 |
+| **Random Forest** | **0.657** | **0.703** |
+| SVR | *(pending tuning)* | *(pending tuning)* |
 
-**Random Forest outperformed SVM/SVR on every metric, in both tasks**, and
-trained significantly faster (~16s vs ~2min for 5-fold CV). See
-`notebooks/04_modeling.ipynb` and `notebooks/05_regression.ipynb` for the
-full comparison and reasoning.
+### Dataset characteristics
 
-### Hyperparameter tuning (notebook 06)
+| Metric | Value |
+|--------|-------|
+| Raw records | 21,675 |
+| Curated molecules | 9,436 |
+| Active (pIC50 ≥ 6) | 8,634 (91.5%) |
+| Inactive (pIC50 < 6) | 802 (8.5%) |
+| pIC50 range | 3.00 – 12.59 |
+| pIC50 mean | 7.54 |
 
-GridSearchCV/RandomizedSearchCV found that **default hyperparameters were
-already near-optimal** for both models — tuning produced no measurable
-improvement in CV AUC. This indicated the performance bottleneck was in the
-data (limited inactive examples, 2D-only representation), not model
-configuration — a meaningful negative result documented explicitly rather
-than omitted.
+The dataset is heavily active-enriched (91.5% active), reflecting the
+extensive medicinal chemistry optimization campaigns published for BTK.
+This severe imbalance is addressed via `class_weight='balanced'` and
+decision threshold adjustment (see notebook 07).
 
-### Class imbalance strategies (notebook 07)
-
-The dataset is imbalanced (82.5% active / 17.5% inactive). Four strategies
-were compared on the Random Forest classifier:
-
-| Strategy | AUC | F1 (Inactive) | Recall (Inactive) |
-|----------|-----|----------------|----------------------|
-| **Baseline** (`class_weight='balanced'`) | 0.953 | **0.765** | 0.822 |
-| SMOTE oversampling | 0.947 | 0.749 | 0.816 |
-| Random undersampling | 0.938 | 0.682 | 0.868 |
-| **Threshold adjustment (0.65)** | 0.953 | 0.744 | **0.882** |
-
-No single strategy dominates. The project formalizes **two complementary
-models as primary outputs**:
-
-1. **Baseline** (`class_weight='balanced'`, threshold=0.5) — best general-purpose
-   balance between classes.
-2. **Same model + threshold=0.65** — best for conservative virtual screening
-   triage, maximizing inactive recall (0.882) to avoid wasting resources on
-   likely-inactive candidates; requires no retraining.
-
-SMOTE and undersampling underperformed the baseline and are retained as
-documented comparison evidence only.
-
-### Chemical interpretability: bit_56
-
-Across **both** the classification and regression Random Forest models, the
-dominant fingerprint feature is consistently **bit_56**, decoded via RDKit
-as a **urea/amide-centered substructure** (–NH–C(=O)–NH–). This motif is a
-well-characterized hydrogen-bond donor/acceptor in kinase inhibitors,
-known to interact with the ATP-binding hinge region of the kinase domain.
-
-Its emergence as the top predictor in two independently trained models
-solving two different tasks is strong evidence the models captured a real
-structure-activity relationship, not statistical noise — without being
-given any prior biological information.
+MCC (Matthews Correlation Coefficient) is used alongside AUC and F1 as
+the primary evaluation metric for classification, given the severe class
+imbalance — MCC accounts for all four quadrants of the confusion matrix
+symmetrically and is more informative than F1 alone under these conditions.
 
 ---
 
 ## Pipeline
 
 ```
-ChEMBL API (CHEMBL2842)
+ChEMBL API (CHEMBL5251)
         ↓
 01_data_collection.ipynb / src/data_collection.py
-  └─ Raw IC50 data + SMILES → data/raw/btk_raw.csv (6,502 records)
+  └─ Raw IC50 data + SMILES → data/raw/btk_raw.csv (21,675 records)
         ↓
 02_preprocessing.ipynb / src/preprocessing.py
-  └─ Curation + IC50 → pIC50 + activity labels → data/processed/btk_curated.csv (4,354 molecules)
+  └─ Curation + IC50 → pIC50 + activity labels → data/processed/btk_curated.csv (9,436 molecules)
         ↓
 03_fingerprints.ipynb / src/featurization.py
   └─ Morgan Fingerprints (ECFP4, r=2, 2048 bits) → data/processed/btk_fps.csv
         ↓
 04_modeling.ipynb / src/train_classifier.py
-  └─ RF vs SVM classification → AUC 0.953 (RF) vs 0.938 (SVM)
+  └─ RF vs SVM classification → AUC, F1, MCC (pending)
         ↓
 05_regression.ipynb / src/train_regressor.py
-  └─ RF vs SVR regression → R² 0.742 (RF) vs 0.687 (SVR)
+  └─ RF vs SVR regression → R² 0.657 (RF)
         ↓
 06_tuning_classification.ipynb
-  └─ GridSearchCV / RandomizedSearchCV → defaults confirmed near-optimal (no AUC gain)
+  └─ GridSearchCV / RandomizedSearchCV → (pending)
         ↓
 07_imbalance_strategies.ipynb
-  └─ SMOTE / undersampling / threshold → baseline + threshold=0.65 formalized as primary models
+  └─ SMOTE / undersampling / threshold → (pending)
 ```
 
 ---
@@ -190,13 +159,13 @@ projeto1-qsar-classico/
 │   └── 07_imbalance_strategies.ipynb
 ├── src/                               # Production-ready reusable scripts
 │   ├── __init__.py
-│   ├── utils.py                       # Shared helpers (fingerprinting, pIC50 conversion)
+│   ├── utils.py
 │   ├── data_collection.py
 │   ├── preprocessing.py
 │   ├── featurization.py
 │   ├── train_classifier.py
 │   ├── train_regressor.py
-│   └── main.py                        # Orchestrates the full pipeline end-to-end
+│   └── main.py
 ├── models/                            # Saved trained models (gitignored)
 ├── results/                           # Plots and evaluation outputs (gitignored)
 ├── environment.yml
@@ -236,10 +205,10 @@ python -m ipykernel install --user --name qsar-proj1 --display-name "Python 3 (q
 ### Run the full pipeline
 
 ```bash
-# From scratch (re-downloads from ChEMBL, ~7 min total)
+# From scratch (re-downloads from ChEMBL, ~10 min total)
 python -m src.main
 
-# Reuse existing raw data, skip ChEMBL download (~1 min)
+# Reuse existing raw data, skip ChEMBL download (~2 min)
 python -m src.main --skip-download
 ```
 
@@ -268,20 +237,17 @@ jupyter notebook
   zanubrutinib are approved for B-cell malignancies, not autoimmune diseases.
   BTK inhibition for SLE is under active clinical investigation; for RA,
   trials were conducted but showed equivocal results with limited monotherapy
-  efficacy — the dataset reflects the full range of BTK bioactivity data in
-  ChEMBL, including compounds originally developed for oncology.
+  efficacy.
+- **Severe class imbalance:** 91.5% active / 8.5% inactive. Even with
+  `class_weight='balanced'` and threshold adjustment, inactive-class
+  performance is limited by the small number of true negative examples
+  in the published literature.
 - **2D fingerprints only** — ECFP4 encodes substructure topology, not 3D
-  conformation or binding geometry. Potency information dependent on
-  molecular shape or specific protein pocket interactions is not captured.
-- **Class imbalance partially addressed, not eliminated** — inactive-class
-  performance (F1 ≈ 0.74–0.77) remains below active-class performance
-  (F1 ≈ 0.93–0.95) across all strategies tested, reflecting the limited
-  number of inactive examples (760 of 4,354 compounds).
-- **Extrapolation limits** — RF predictions are bounded by the training set
-  range and compress toward the mean at extreme pIC50 values, making the
-  model less reliable for unusually potent or unusually weak compounds.
+  conformation or binding geometry.
+- **Extrapolation limits** — RF predictions compress toward the mean at
+  extreme pIC50 values (very weak or very potent compounds).
 - **No applicability domain analysis** — predictions for structurally novel
-  compounds (far from the training set) should be treated with caution.
+  compounds should be treated with caution.
 
 ---
 
