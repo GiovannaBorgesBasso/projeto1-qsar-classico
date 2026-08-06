@@ -2,7 +2,7 @@
 
 > Classical QSAR pipeline: ChEMBL bioactivity data → RDKit molecular fingerprints → scikit-learn (Random Forest, SVM) → cross-validated evaluation, applied to BTK inhibitors.
 
-Part of a personal cheminformatics/ML portfolio developed in parallel with research at **LabMol (UFG)**, aimed at building applied AI skills for drug discovery.
+Part of a personal cheminformatics/ML portfolio developed in parallel with studies at **LabMol (UFG)**, aimed at building applied AI skills for drug discovery.
 
 ---
 
@@ -16,10 +16,7 @@ to B-cell receptor (BCR) signaling.
 BTK inhibition is an established therapeutic strategy for **B-cell
 malignancies** (the primary approved indication). For autoimmune diseases,
 the picture is more nuanced: next-generation selective BTK inhibitors are
-under active clinical investigation for **SLE**, while for **RA**, clinical
-trials have been conducted but showed limited efficacy as monotherapy —
-results have been equivocal, and RA remains treated in practice with
-synthetic DMARDs, anti-TNF biologics, and JAK inhibitors.
+under active clinical investigation for **SLE** (Systemic Lupus Erythematosus).
 
 The project covers both **classification** (active/inactive) and
 **regression** (continuous pIC50 prediction), compares Random Forest against
@@ -53,22 +50,17 @@ in B-cell survival, proliferation, and differentiation. Its dysregulation
 drives:
 
 - **B-cell malignancies** — the primary therapeutic area where BTK inhibitors
-  are currently approved (CLL, mantle cell lymphoma, Waldenström
-  macroglobulinemia).
+  are currently approved (CLL, mantle cell lymphoma, Waldenström macroglobulinemia).
 - **SLE** — B-cell hyperactivation via BCR signaling is central to SLE
   pathogenesis; next-generation selective reversible BTK inhibitors are under
   active clinical investigation for this indication.
 - **RA** — BTK was investigated in clinical trials (fenebrutinib, spebrutinib,
   evobrutinib, tirabrutinib) but results were equivocal — limited efficacy as
-  monotherapy in humans, despite promising preclinical data in animal models.
-  RA is currently treated in clinical practice with synthetic DMARDs,
-  anti-TNF biologics, and JAK inhibitors; BTK inhibitors are not an active
-  frontier for this indication.
+  monotherapy in humans, despite promising preclinical data. RA is currently
+  treated with synthetic DMARDs, anti-TNF biologics, and JAK inhibitors.
 
 First-generation BTK inhibitors (ibrutinib, acalabrutinib) show toxicity
-profiles acceptable for oncology but not for chronic autoimmune use —
-hence the development of more selective reversible inhibitors for autoimmune
-indications.
+profiles acceptable for oncology but not for chronic autoimmune use.
 
 ---
 
@@ -78,38 +70,49 @@ indications.
 
 | Model | Test AUC-ROC | Test F1 | Test MCC |
 |-------|---------------|---------|----------|
-| **Random Forest** | *(pending)* | *(pending)* | *(pending)* |
-| SVM | *(pending)* | *(pending)* | *(pending)* |
+| **Random Forest** | **0.928** | **0.957** | **0.548** |
+| SVM (subsample n=3,000) | 0.863 | 0.952 | 0.410 |
 
-> Results will be updated after notebook 04 completes.
+**Random Forest outperformed SVM on every metric**, and MCC (Matthews
+Correlation Coefficient) is used as the primary evaluation metric alongside
+AUC given the severe class imbalance (91.5% active / 8.5% inactive).
+MCC accounts for all four quadrants of the confusion matrix symmetrically
+and is more informative than F1 alone under these conditions.
 
 ### Regression (continuous pIC50 prediction)
 
 | Model | Test R² | Test RMSE |
 |-------|---------|-----------|
 | **Random Forest** | **0.657** | **0.703** |
-| SVR | *(pending tuning)* | *(pending tuning)* |
+| SVR (subsample n=3,000) | 0.595 | 0.764 |
 
-### Dataset characteristics
+### Class imbalance strategies (notebook 07)
 
-| Metric | Value |
-|--------|-------|
-| Raw records | 21,675 |
-| Curated molecules | 9,436 |
-| Active (pIC50 ≥ 6) | 8,634 (91.5%) |
-| Inactive (pIC50 < 6) | 802 (8.5%) |
-| pIC50 range | 3.00 – 12.59 |
-| pIC50 mean | 7.54 |
+Three threshold configurations are formalized as primary outputs —
+all use the **same trained model**, only the decision threshold changes:
 
-The dataset is heavily active-enriched (91.5% active), reflecting the
-extensive medicinal chemistry optimization campaigns published for BTK.
-This severe imbalance is addressed via `class_weight='balanced'` and
-decision threshold adjustment (see notebook 07).
+| Configuration | Threshold | F1 Inactive | Recall Inactive | MCC | Use case |
+|---------------|-----------|-------------|-----------------|-----|----------|
+| **General-purpose** | 0.50 | **0.590** | 0.650 | **0.548** | Default, balanced |
+| **Moderate triage** | 0.75 | 0.510 | 0.820 | 0.490 | Virtual screening |
+| **Ultra-conservative** | 0.85 | 0.440 | **0.920** | 0.446 | Strict triage |
 
-MCC (Matthews Correlation Coefficient) is used alongside AUC and F1 as
-the primary evaluation metric for classification, given the severe class
-imbalance — MCC accounts for all four quadrants of the confusion matrix
-symmetrically and is more informative than F1 alone under these conditions.
+### Hyperparameter tuning (notebook 06)
+
+GridSearchCV/RandomizedSearchCV confirmed **default hyperparameters are
+already near-optimal** for both models — no measurable AUC improvement.
+The performance bottleneck is data-side (limited inactive examples, 2D-only
+representation), not model configuration.
+
+### Chemical interpretability
+
+| Task | Top feature | Substructure | Chemical meaning |
+|------|-------------|--------------|-----------------|
+| Classification | bit_575 | Aryl sulfonyl (–Ar–SO₂–) | H-bond acceptor, hinge region interaction |
+| Regression | bit_339 | Chiral carbon (N, Cl substituents) | Stereospecific potency determinant |
+
+Both features are chemically consistent with known BTK inhibitor pharmacophores,
+validating that the models learned real structure-activity relationships.
 
 ---
 
@@ -128,16 +131,16 @@ ChEMBL API (CHEMBL5251)
   └─ Morgan Fingerprints (ECFP4, r=2, 2048 bits) → data/processed/btk_fps.csv
         ↓
 04_modeling.ipynb / src/train_classifier.py
-  └─ RF vs SVM classification → AUC, F1, MCC (pending)
+  └─ RF vs SVM classification → AUC 0.928 (RF) vs 0.863 (SVM), MCC 0.548 vs 0.410
         ↓
 05_regression.ipynb / src/train_regressor.py
-  └─ RF vs SVR regression → R² 0.657 (RF)
+  └─ RF vs SVR regression → R² 0.657 (RF) vs 0.595 (SVR)
         ↓
 06_tuning_classification.ipynb
-  └─ GridSearchCV / RandomizedSearchCV → (pending)
+  └─ GridSearchCV / RandomizedSearchCV → defaults confirmed near-optimal
         ↓
 07_imbalance_strategies.ipynb
-  └─ SMOTE / undersampling / threshold → (pending)
+  └─ Three threshold configs formalized (0.50 / 0.75 / 0.85)
 ```
 
 ---
@@ -233,19 +236,20 @@ jupyter notebook
 
 ## Limitations
 
-- **Clinical context of reference drugs:** ibrutinib, acalabrutinib, and
-  zanubrutinib are approved for B-cell malignancies, not autoimmune diseases.
-  BTK inhibition for SLE is under active clinical investigation; for RA,
-  trials were conducted but showed equivocal results with limited monotherapy
-  efficacy.
+- **Clinical context:** ibrutinib, acalabrutinib, and zanubrutinib are
+  approved for B-cell malignancies, not autoimmune diseases. BTK inhibition
+  for SLE is under active clinical investigation; for RA, trials showed
+  equivocal results with limited monotherapy efficacy.
 - **Severe class imbalance:** 91.5% active / 8.5% inactive. Even with
   `class_weight='balanced'` and threshold adjustment, inactive-class
-  performance is limited by the small number of true negative examples
-  in the published literature.
+  performance is limited by the small number of true negative examples (802).
+- **SVM/SVR subsampling:** kernel methods were trained on subsamples of
+  3,000 molecules due to computational constraints. RF had access to the
+  full training set, making the comparison slightly favorable to RF.
 - **2D fingerprints only** — ECFP4 encodes substructure topology, not 3D
-  conformation or binding geometry.
+  conformation or binding geometry. Stereochemistry is not captured directly.
 - **Extrapolation limits** — RF predictions compress toward the mean at
-  extreme pIC50 values (very weak or very potent compounds).
+  extreme pIC50 values (below 4 or above 10).
 - **No applicability domain analysis** — predictions for structurally novel
   compounds should be treated with caution.
 
