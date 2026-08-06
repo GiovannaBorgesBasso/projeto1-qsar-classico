@@ -4,15 +4,10 @@ main.py
 Orchestrates the full QSAR pipeline end-to-end:
 ChEMBL data collection -> preprocessing -> featurization -> model training.
 
-Equivalent to running notebooks 01-05 in sequence, or running each
-src/ script individually. Useful for reproducing the entire project
-from scratch with a single command.
-
 Usage:
     python -m src.main
 
-    # Skip data collection if data/raw/btk_raw.csv already exists
-    # (avoids re-querying the ChEMBL API unnecessarily):
+    # Skip data collection if data/raw/btk_raw.csv already exists:
     python -m src.main --skip-download
 """
 
